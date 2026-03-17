@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>IBS 1 — Resilience Stress Test · Cranfield School of Management</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #0f0f1a; font-family: 'DM Sans', sans-serif; }
+    input[type=range] { -webkit-appearance: none; appearance: none; background: transparent; width: 100%; cursor: pointer; }
+    input[type=range]::-webkit-slider-runnable-track { height: 6px; border-radius: 3px; background: rgba(255,255,255,0.15); }
+    input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 20px; width: 20px; border-radius: 50%; background: #fff; margin-top: -7px; box-shadow: 0 2px 6px rgba(0,0,0,0.4); }
+    input[type=range]::-moz-range-track { height: 6px; border-radius: 3px; background: rgba(255,255,255,0.15); }
+    input[type=range]::-moz-range-thumb { height: 20px; width: 20px; border-radius: 50%; background: #fff; border: none; box-shadow: 0 2px 6px rgba(0,0,0,0.4); }
+    @keyframes pulse { 0%,100% { box-shadow: 0 0 0 4px rgba(229,57,53,0.3); } 50% { box-shadow: 0 0 0 10px rgba(229,57,53,0.08); } }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    .fade-in { animation: fadeIn 0.35s ease forwards; }
+    ::-webkit-scrollbar { width: 6px; } 
+    ::-webkit-scrollbar-track { background: #0f0f1a; }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState } = React;
+
+// ── DATA ─────────────────────────────────────────────────────────────────────
+
+const RESOURCE_CATEGORIES = [
+  {
+    id: "faculty", label: "Faculty & Expertise", color: "#4E8FD4", lightColor: "#EBF3FA",
+    resources: [
+      { id: "permanent_faculty", label: "Permanent Faculty", description: "Core academic staff delivering taught sessions", unit: "% available", default: 100, amberAt: 80, redAt: 65, dependents: ["visiting_practitioners","supervision_allocation"], dependencyNote: "Below 80%, pressure shifts to visiting practitioners to cover taught sessions." },
+      { id: "visiting_practitioners", label: "Visiting Practitioners", description: "Industry experts delivering applied content", unit: "% of sessions confirmed", default: 100, amberAt: 75, redAt: 55, dependents: ["cohort_contact_hours"], dependencyNote: "Below 75%, applied learning sessions cannot be substituted by permanent faculty alone." },
+      { id: "supervision_allocation", label: "Supervision Allocation", description: "Individual supervisor time per student", unit: "% of contracted hours", default: 100, amberAt: 80, redAt: 60, dependents: ["assessed_feedback_cycle"], dependencyNote: "Below 80%, feedback turnaround begins to exceed the 10-day tolerance threshold." },
+      { id: "faculty_development", label: "Faculty Development Time", description: "Time for curriculum refresh and material preparation", unit: "% of allocated time", default: 100, amberAt: 70, redAt: 50, dependents: ["curriculum_currency"], dependencyNote: "Below 70%, curriculum currency degrades — content begins to lag industry practice." },
+    ],
+  },
+  {
+    id: "infrastructure", label: "Physical & Digital Infrastructure", color: "#8B7EC8", lightColor: "#F0EEF9",
+    resources: [
+      { id: "teaching_spaces", label: "Teaching Spaces", description: "Classrooms, seminar rooms, breakout spaces", unit: "% of scheduled capacity available", default: 100, amberAt: 80, redAt: 65, dependents: ["cohort_participation"], dependencyNote: "Below 80%, cohort must be split across sessions, reducing peer learning integrity." },
+      { id: "hybrid_tech", label: "Hybrid Delivery Technology", description: "AV, streaming, and collaboration platforms", unit: "% of sessions fully supported", default: 100, amberAt: 85, redAt: 70, dependents: ["cohort_participation","assessed_feedback_cycle"], dependencyNote: "Below 85%, remote participants experience degraded access — effective cohort size falls." },
+      { id: "vle", label: "Virtual Learning Environment", description: "Learning platform, materials access, submission portal", unit: "% uptime during teaching hours", default: 100, amberAt: 90, redAt: 80, dependents: ["assessed_feedback_cycle","curriculum_currency"], dependencyNote: "Below 90%, assignment submission and feedback delivery are disrupted." },
+    ],
+  },
+  {
+    id: "cohort", label: "Student Cohort Integrity", color: "#3DAA80", lightColor: "#E8F5F1",
+    resources: [
+      { id: "cohort_size", label: "Cohort Size", description: "Students actively enrolled and participating", unit: "% of enrolled cohort", default: 100, amberAt: 75, redAt: 60, dependents: ["cohort_participation"], dependencyNote: "Below 75%, the peer learning dynamic that underpins cohort-based programmes begins to break down." },
+      { id: "cohort_participation", label: "Active Session Participation", description: "Students attending and engaging in scheduled sessions", unit: "% attendance across sessions", default: 100, amberAt: 70, redAt: 55, dependents: [], dependencyNote: "Below 70%, group work quality and peer challenge — core to the Cranfield method — is compromised." },
+    ],
+  },
+  {
+    id: "operations", label: "Programme Operations", color: "#C4603A", lightColor: "#FAF0ED",
+    resources: [
+      { id: "scheduling", label: "Scheduling & Timetabling", description: "Programme coordination and calendar management", unit: "% of sessions scheduled on time", default: 100, amberAt: 90, redAt: 75, dependents: ["cohort_contact_hours"], dependencyNote: "Below 90%, unplanned gaps accumulate and cohort contact hours fall below threshold." },
+      { id: "cohort_contact_hours", label: "Delivered Contact Hours", description: "Actual teaching hours delivered vs scheduled", unit: "% of scheduled hours delivered", default: 100, amberAt: 90, redAt: 85, dependents: [], dependencyNote: "Below 85%, the programme cannot demonstrate delivery of its stated learning outcomes — tolerance breach." },
+      { id: "assessed_feedback_cycle", label: "Assessment Feedback Cycle", description: "Feedback returned within 10 working days", unit: "% of feedback returned on time", default: 100, amberAt: 85, redAt: 70, dependents: [], dependencyNote: "Below 70%, students cannot act on feedback within the programme cycle — learning continuity breaks." },
+      { id: "curriculum_currency", label: "Curriculum Currency", description: "Relevance and recency of content to industry practice", unit: "% of modules reviewed within 12 months", default: 100, amberAt: 80, redAt: 65, dependents: [], dependencyNote: "Below 65%, students cannot develop capabilities that reflect current leadership practice." },
+    ],
+  },
+];
+
+const ALL_RESOURCES = RESOURCE_CATEGORIES.flatMap(c => c.resources);
+
+const MECHANISMS = {
+  redundancy: { label: "Redundancy", icon: "⊕", color: "#4E8FD4", description: "Build in backup capacity so that when a resource fails, an equivalent replaces it without degrading the service." },
+  flexibility: { label: "Flexibility", icon: "⟳", color: "#3DAA80", description: "Design resources and processes to reconfigure quickly in response to changing conditions." },
+  diversity: { label: "Diversity", icon: "◈", color: "#8B7EC8", description: "Use a variety of resource types so that no single failure point can take down the whole system." },
+  modularity: { label: "Modularity", icon: "⧉", color: "#C4603A", description: "Structure delivery so components can be isolated or rescheduled without cascading failure." },
+};
+
+const VULN_RECS = {
+  permanent_faculty:       { mechanism: "redundancy",  rationale: "Permanent faculty is a single-point resource with no natural substitute. An expanded, vetted visiting practitioner pool with authority to deliver core sessions is the primary protection.", action: "Establish a standing pool of at least 3 additional qualified practitioners per module who can step in at short notice." },
+  visiting_practitioners:  { mechanism: "diversity",   rationale: "Visiting practitioners are inherently variable. Diversity across sectors, organisations and formats ensures no single cancellation depletes the applied learning offer.", action: "Source practitioners across at least three industries and two seniority levels per programme cohort." },
+  supervision_allocation:  { mechanism: "modularity",  rationale: "Supervision cascades into feedback timing. Modular supervision design — with defined handover protocols — ensures continuity when individual supervisors are unavailable.", action: "Assign each student a primary and secondary supervisor with shared access to progress records." },
+  faculty_development:     { mechanism: "flexibility", rationale: "Curriculum currency depends on development time that is protected but portable. Flexible scheduling maintains quality without requiring dedicated immovable blocks.", action: "Protect development time as a standing calendar commitment, moveable within term but never cancelled." },
+  teaching_spaces:         { mechanism: "flexibility", rationale: "Space constraints are best resolved through flexible delivery design — sessions that work in-person, split-cohort, or hybrid without redesign.", action: "Certify all taught sessions for hybrid delivery so that any space reduction triggers a pre-tested fallback." },
+  hybrid_tech:             { mechanism: "redundancy",  rationale: "Technology failure is binary and fast-cascading. Redundant delivery platforms with tested fallback protocols are the most reliable protection.", action: "Maintain a secondary streaming and collaboration platform with documented switch-over protocol tested termly." },
+  vle:                     { mechanism: "redundancy",  rationale: "VLE outage disrupts submission and feedback simultaneously. A redundant content channel preserves continuity during platform failure.", action: "Mirror all active module materials to a secondary shared drive accessible without VLE login." },
+  cohort_size:             { mechanism: "modularity",  rationale: "Cohort integrity is protected by modular programme design ensuring peer learning functions with smaller groups through structured sub-team architectures.", action: "Design all group learning activities to function with sub-groups of 4–6, not dependent on full cohort presence." },
+  cohort_participation:    { mechanism: "flexibility", rationale: "Participation variability is best absorbed through flexible session design — asynchronous options and recording that maintain learning continuity without penalising absence.", action: "Record all core taught sessions with structured reflection prompts for asynchronous engagement." },
+  scheduling:              { mechanism: "modularity",  rationale: "Scheduling failures cascade into contact hours. Modular programme structure prevents a single timetabling failure from disrupting the whole programme.", action: "Design each module's schedule independently so rescheduling one does not require moving any other." },
+  cohort_contact_hours:    { mechanism: "redundancy",  rationale: "Contact hours are the most direct measure of delivery. Reserve capacity — pre-scheduled buffer sessions — provides recovery time without breaching thresholds.", action: "Build two buffer sessions per term into the programme calendar, held as recovery capacity." },
+  assessed_feedback_cycle: { mechanism: "flexibility", rationale: "Feedback cycles depend on multiple resources. Flexible assessment design with staged feedback points distributes load and prevents cascade from supervision pressure.", action: "Replace single-point submissions with staged checkpoints, each with a defined feedback window of no more than 5 days." },
+  curriculum_currency:     { mechanism: "diversity",   rationale: "Curriculum currency is best maintained through diverse review inputs — practitioner panels, alumni feedback, industry partnerships — not relying solely on faculty development time.", action: "Convene a practitioner advisory panel termly to review applied content relevance independent of faculty development cycles." },
+};
+
+// ── COMPUTATION ───────────────────────────────────────────────────────────────
+
+function computeState(values) {
+  const rs = {};
+  const cascades = [], breaches = [], warnings = [];
+  ALL_RESOURCES.forEach(r => {
+    const v = values[r.id] ?? 100;
+    let state = "green";
+    if (v <= r.redAt) state = "red";
+    else if (v <= r.amberAt) state = "amber";
+    rs[r.id] = { value: v, state };
+    if (state === "red") breaches.push(r);
+    else if (state === "amber") warnings.push(r);
+    if (state !== "green") r.dependents.forEach(dep => cascades.push({ from: r.id, to: dep, severity: state, note: r.dependencyNote }));
+  });
+  let systemState = "green";
+  if (breaches.length > 0) systemState = "red";
+  else if (warnings.length > 0 || cascades.length > 0) systemState = "amber";
+  const vulnerabilities = [...breaches, ...warnings.filter(r => cascades.some(c => c.from === r.id))];
+  return { rs, systemState, breaches, warnings, cascades, vulnerabilities };
+}
+
+// ── COLOUR HELPERS ────────────────────────────────────────────────────────────
+
+const SC = {
+  green: { bg: "#E8F5E9", border: "#4CAF50", text: "#2E7D32", dot: "#4CAF50" },
+  amber: { bg: "#FFF8E1", border: "#FFB300", text: "#E65100", dot: "#FFB300" },
+  red:   { bg: "#FFEBEE", border: "#E53935", text: "#B71C1C", dot: "#E53935" },
+};
+const SL = { green: "Within Tolerance", amber: "Tolerance Under Pressure", red: "Tolerance Breached" };
+
+// ── SUB-COMPONENTS ────────────────────────────────────────────────────────────
+
+function Slider({ resource, value, onChange, state }) {
+  const c = SC[state];
+  return (
+    <div className="fade-in" style={{ background: c.bg, border: `1.5px solid ${c.border}`, borderRadius: 10, padding: "14px 16px", marginBottom: 10, transition: "all 0.3s" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontWeight: 700, fontSize: 13, color: "#1a1a2e" }}>{resource.label}</div>
+          <div style={{ fontSize: 11, color: "#666", marginTop: 2 }}>{resource.description}</div>
+        </div>
+        <div style={{ background: c.border, color: "#fff", borderRadius: 20, padding: "3px 12px", fontSize: 14, fontWeight: 700, fontFamily: "'DM Mono', monospace", marginLeft: 12, minWidth: 52, textAlign: "center" }}>
+          {value}%
+        </div>
+      </div>
+      <input type="range" min={0} max={100} value={value} onChange={e => onChange(resource.id, +e.target.value)} style={{ accentColor: c.border }} />
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#999", fontFamily: "'DM Mono', monospace", marginTop: 2 }}>
+        <span>0%</span>
+        <span style={{ color: "#FFB300" }}>⚠ {resource.amberAt}%</span>
+        <span style={{ color: "#E53935" }}>✕ {resource.redAt}%</span>
+        <span>100%</span>
+      </div>
+      {state !== "green" && (
+        <div style={{ marginTop: 8, padding: "7px 10px", background: "rgba(0,0,0,0.05)", borderRadius: 6, fontSize: 11, color: c.text, lineHeight: 1.5, borderLeft: `3px solid ${c.border}` }}>
+          <strong>↳ Dependency effect:</strong> {resource.dependencyNote}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Banner({ systemState, breaches, warnings, cascades }) {
+  const c = SC[systemState];
+  return (
+    <div className="fade-in" style={{ background: c.bg, border: `2px solid ${c.border}`, borderRadius: 14, padding: "18px 22px", marginBottom: 20, transition: "all 0.4s" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 6 }}>
+        <div style={{ width: 14, height: 14, borderRadius: "50%", background: c.dot, flexShrink: 0, animation: systemState === "red" ? "pulse 1.5s infinite" : "none" }} />
+        <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 19, fontWeight: 700, color: c.text }}>{SL[systemState]}</div>
+      </div>
+      <div style={{ fontSize: 13, color: systemState === "green" ? "#555" : c.text, lineHeight: 1.6 }}>
+        {systemState === "green" && "All resources within operating thresholds. The IBS 1 promise is currently deliverable."}
+        {systemState === "amber" && `${warnings.length} resource${warnings.length !== 1 ? "s" : ""} under pressure${cascades.length > 0 ? `, ${cascades.length} dependency cascade${cascades.length !== 1 ? "s" : ""} active` : ""}. The IBS promise is at risk — further degradation will breach tolerance.`}
+        {systemState === "red" && <><strong>{breaches.length} resource{breaches.length !== 1 ? "s" : ""} below tolerance threshold.</strong> Cranfield cannot currently deliver the full promise of IBS 1. Vulnerabilities and recommendations are shown below.</>}
+      </div>
+    </div>
+  );
+}
+
+function Cascades({ cascades }) {
+  if (!cascades.length) return null;
+  const label = id => ALL_RESOURCES.find(r => r.id === id)?.label || id;
+  return (
+    <div className="fade-in" style={{ background: "#fff8f0", border: "1.5px solid #FFB300", borderRadius: 12, padding: "14px 18px", marginBottom: 18 }}>
+      <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 15, fontWeight: 700, color: "#E65100", marginBottom: 10 }}>Active Dependency Cascades</div>
+      {cascades.map((c, i) => (
+        <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, marginBottom: 5, color: "#555" }}>
+          <span style={{ background: SC[c.severity].border, color: "#fff", borderRadius: 4, padding: "1px 7px", fontSize: 10, fontWeight: 700 }}>{c.severity.toUpperCase()}</span>
+          <span style={{ fontWeight: 600, color: "#333" }}>{label(c.from)}</span>
+          <span style={{ color: "#aaa" }}>→</span>
+          <span style={{ fontWeight: 600, color: "#333" }}>{label(c.to)}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function VulnPanel({ vulnerabilities, discussionMode, onToggle }) {
+  const [picks, setPicks] = useState({});
+  if (!vulnerabilities.length) return null;
+  return (
+    <div className="fade-in" style={{ background: "#1a1a2e", borderRadius: 14, padding: "18px 20px", marginBottom: 22, border: "1px solid rgba(255,255,255,0.08)" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+        <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 16, fontWeight: 700, color: "#fff" }}>Identified Vulnerabilities</div>
+        <button onClick={onToggle} style={{ background: discussionMode ? "#FFB300" : "transparent", color: discussionMode ? "#1a1a2e" : "#FFB300", border: "1.5px solid #FFB300", borderRadius: 20, padding: "5px 14px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+          {discussionMode ? "✓ Discussion Mode" : "Discussion Mode"}
+        </button>
+      </div>
+      {vulnerabilities.map(r => {
+        const rec = VULN_RECS[r.id];
+        const m = MECHANISMS[rec.mechanism];
+        return (
+          <div key={r.id} style={{ background: "rgba(255,255,255,0.04)", borderRadius: 10, padding: "14px 16px", marginBottom: 12, borderLeft: `4px solid ${m.color}` }}>
+            <div style={{ fontWeight: 700, fontSize: 13, color: "#fff", marginBottom: 3 }}>{r.label}</div>
+            <div style={{ fontSize: 11, color: "#999", marginBottom: 10, lineHeight: 1.5 }}>{r.dependencyNote}</div>
+            {!discussionMode ? (
+              <div style={{ background: `${m.color}22`, borderRadius: 8, padding: "10px 12px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                  <span style={{ fontSize: 16 }}>{m.icon}</span>
+                  <span style={{ fontWeight: 700, fontSize: 13, color: m.color }}>Recommended: {m.label}</span>
+                </div>
+                <div style={{ fontSize: 12, color: "#ccc", marginBottom: 5, lineHeight: 1.5 }}><strong style={{ color: "#fff" }}>Why: </strong>{rec.rationale}</div>
+                <div style={{ fontSize: 12, color: "#bbb", lineHeight: 1.5, fontStyle: "italic" }}><strong style={{ color: "#ddd", fontStyle: "normal" }}>Action: </strong>{rec.action}</div>
+              </div>
+            ) : (
+              <div>
+                <div style={{ fontSize: 12, color: "#FFB300", fontWeight: 600, marginBottom: 8 }}>Which resilience mechanism would you apply? Select and defend your choice.</div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
+                  {Object.entries(MECHANISMS).map(([key, mx]) => {
+                    const sel = picks[r.id] === key;
+                    return (
+                      <button key={key} onClick={() => setPicks(p => ({ ...p, [r.id]: key }))} style={{ background: sel ? `${mx.color}33` : "rgba(255,255,255,0.05)", border: `1.5px solid ${sel ? mx.color : "rgba(255,255,255,0.12)"}`, borderRadius: 8, padding: "8px 10px", cursor: "pointer", textAlign: "left" }}>
+                        <div style={{ fontSize: 14, marginBottom: 2 }}>{mx.icon}</div>
+                        <div style={{ fontWeight: 700, fontSize: 12, color: sel ? mx.color : "#ccc" }}>{mx.label}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+                {picks[r.id] && (
+                  <div style={{ padding: "10px 12px", borderRadius: 8, background: picks[r.id] === rec.mechanism ? "rgba(76,175,80,0.12)" : "rgba(255,183,0,0.1)", border: `1px solid ${picks[r.id] === rec.mechanism ? "#4CAF50" : "#FFB300"}` }}>
+                    <div style={{ fontSize: 12, color: "#ccc", marginBottom: 4, lineHeight: 1.5 }}>{MECHANISMS[picks[r.id]].description}</div>
+                    {picks[r.id] === rec.mechanism
+                      ? <div style={{ fontSize: 11, color: "#4CAF50" }}>✓ Matches the model's recommendation — {rec.rationale}</div>
+                      : <div style={{ fontSize: 11, color: "#FFB300" }}>The model recommends <strong>{MECHANISMS[rec.mechanism].label}</strong> here. Can you argue why? Or defend your alternative.</div>
+                    }
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── MAIN APP ──────────────────────────────────────────────────────────────────
+
+function App() {
+  const init = Object.fromEntries(ALL_RESOURCES.map(r => [r.id, r.default]));
+  const [values, setValues] = useState(init);
+  const [step, setStep] = useState(0);
+  const [discussionMode, setDiscussionMode] = useState(false);
+
+  const { rs, systemState, breaches, warnings, cascades, vulnerabilities } = computeState(values);
+  const change = (id, v) => setValues(p => ({ ...p, [id]: v }));
+  const reset = () => setValues(init);
+
+  const STEPS = ["① IBS Statement", "② Impact Tolerance", "③ Resource Map", "④ Stress Test"];
+
+  return (
+    <div style={{ minHeight: "100vh", background: "linear-gradient(135deg,#0f0f1a 0%,#1a1a2e 60%,#16213e 100%)", paddingBottom: 60 }}>
+
+      {/* HEADER */}
+      <div style={{ background: "rgba(255,255,255,0.03)", borderBottom: "1px solid rgba(255,255,255,0.07)", padding: "24px 20px 20px" }}>
+        <div style={{ maxWidth: 860, margin: "0 auto" }}>
+          <div style={{ fontSize: 10, letterSpacing: 3, color: "#555", fontFamily: "'DM Mono',monospace", marginBottom: 8, textTransform: "uppercase" }}>Cranfield School of Management · Resilience Programme</div>
+          <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 24, fontWeight: 900, color: "#fff", marginBottom: 2 }}>IBS 1 — Students as Learners</div>
+          <div style={{ fontSize: 12, color: "#777", fontStyle: "italic" }}>Impact Tolerance & Stress Testing Model</div>
+        </div>
+      </div>
+
+      {/* STEP NAV */}
+      <div style={{ background: "rgba(255,255,255,0.02)", borderBottom: "1px solid rgba(255,255,255,0.05)", padding: "12px 20px", overflowX: "auto" }}>
+        <div style={{ maxWidth: 860, margin: "0 auto", display: "flex", gap: 6, minWidth: 400 }}>
+          {STEPS.map((s, i) => (
+            <button key={i} onClick={() => setStep(i)} style={{ flex: 1, background: step === i ? "rgba(255,255,255,0.1)" : "transparent", border: `1px solid ${step === i ? "rgba(255,255,255,0.25)" : "rgba(255,255,255,0.07)"}`, borderRadius: 8, padding: "9px 6px", cursor: "pointer", color: step === i ? "#fff" : "#555", fontSize: 11, fontFamily: "'DM Sans',sans-serif", fontWeight: step === i ? 700 : 400, whiteSpace: "nowrap", transition: "all 0.2s" }}>
+              {s}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* CONTENT */}
+      <div style={{ maxWidth: 860, margin: "28px auto", padding: "0 20px" }}>
+
+        {/* STEP 0 — IBS */}
+        {step === 0 && (
+          <div className="fade-in">
+            <div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.09)", borderRadius: 16, padding: "28px 28px", marginBottom: 16 }}>
+              <div style={{ fontSize: 10, letterSpacing: 3, color: "#666", fontFamily: "'DM Mono',monospace", marginBottom: 14, textTransform: "uppercase" }}>IBS 1 — Students as Learners</div>
+              <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 20, color: "#fff", lineHeight: 1.7, marginBottom: 20, fontStyle: "italic" }}>
+                "Students need to develop the leadership capability and management knowledge to be effective in their careers and organisations. They depend on Cranfield School of Management to make that possible."
+              </div>
+              <div style={{ borderTop: "1px solid rgba(255,255,255,0.07)", paddingTop: 16 }}>
+                <div style={{ fontSize: 11, color: "#888", fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Why it matters</div>
+                <div style={{ fontSize: 14, color: "#bbb", lineHeight: 1.7 }}>If this promise fails, students leave without the capabilities they came for. Reputation suffers, recruitment declines, and the School's commercial and academic standing erodes.</div>
+              </div>
+            </div>
+            <div style={{ background: "rgba(255,255,255,0.02)", borderRadius: 10, padding: "14px 18px", fontSize: 12, color: "#777", lineHeight: 1.6, marginBottom: 20 }}>
+              <strong style={{ color: "#aaa" }}>Format check:</strong> Written in stakeholder terms · Describes an outcome, not an activity · Externally facing · A failure would be immediately recognisable.
+            </div>
+            <button onClick={() => setStep(1)} style={{ background: "#fff", color: "#1a1a2e", border: "none", borderRadius: 8, padding: "13px 28px", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
+              Define Impact Tolerance →
+            </button>
+          </div>
+        )}
+
+        {/* STEP 1 — TOLERANCE */}
+        {step === 1 && (
+          <div className="fade-in">
+            <div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.09)", borderRadius: 16, padding: "28px 28px", marginBottom: 16 }}>
+              <div style={{ fontSize: 10, letterSpacing: 3, color: "#666", fontFamily: "'DM Mono',monospace", marginBottom: 14, textTransform: "uppercase" }}>Impact Tolerance Statement</div>
+              <div style={{ fontSize: 15, color: "#ccc", lineHeight: 1.8, marginBottom: 22, fontStyle: "italic" }}>
+                "Cranfield School of Management can absorb disruption to programme delivery provided students continue to make structured progress toward their learning outcomes. The tolerance is breached when students cannot access faculty-led learning, peer cohort interaction, or assessed feedback for a sustained period, or when the quality of those interactions falls below the standard that justifies the programme's reputation and fee."
+              </div>
+              <div style={{ borderTop: "1px solid rgba(255,255,255,0.07)", paddingTop: 18 }}>
+                <div style={{ fontSize: 11, color: "#888", fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, marginBottom: 14 }}>Threshold Indicators</div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  {[
+                    { label: "Faculty contact gap", value: "Max 5 consecutive days without structured faculty contact per module" },
+                    { label: "Teaching hours delivered", value: "No more than 15% of scheduled hours undelivered in any term" },
+                    { label: "Assessment feedback", value: "Feedback returned within 10 working days of submission" },
+                    { label: "Cohort participation", value: "Minimum 60% of enrolled cohort participating in any session" },
+                  ].map((t, i) => (
+                    <div key={i} style={{ background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "12px 14px" }}>
+                      <div style={{ fontSize: 10, color: "#777", fontFamily: "'DM Mono',monospace", marginBottom: 4 }}>{t.label}</div>
+                      <div style={{ fontSize: 12, color: "#bbb", lineHeight: 1.5 }}>{t.value}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div style={{ background: "rgba(255,183,0,0.07)", border: "1px solid rgba(255,183,0,0.25)", borderRadius: 10, padding: "13px 16px", fontSize: 12, color: "#FFB300", lineHeight: 1.6, marginBottom: 20 }}>
+              <strong>Facilitator note:</strong> These thresholds are illustrative and sense-checkable. The key discipline is writing them in outcome terms — what the student experiences. Challenge the group: are these set in the right place? Too generous? Too tight?
+            </div>
+            <button onClick={() => setStep(2)} style={{ background: "#fff", color: "#1a1a2e", border: "none", borderRadius: 8, padding: "13px 28px", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
+              Map Resources →
+            </button>
+          </div>
+        )}
+
+        {/* STEP 2 — RESOURCE MAP */}
+        {step === 2 && (
+          <div className="fade-in">
+            <div style={{ fontSize: 13, color: "#888", lineHeight: 1.7, marginBottom: 20 }}>
+              These are the resources dedicated to delivering IBS 1 — treated as exclusive to this service with no cross-subsidisation. Each category is broken into sub-resources with defined interdependencies.
+            </div>
+            {RESOURCE_CATEGORIES.map(cat => (
+              <div key={cat.id} style={{ marginBottom: 20 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, paddingBottom: 8, borderBottom: `2px solid ${cat.color}44` }}>
+                  <div style={{ width: 11, height: 11, borderRadius: 3, background: cat.color, flexShrink: 0 }} />
+                  <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 16, color: "#fff", fontWeight: 700 }}>{cat.label}</div>
+                  <div style={{ fontSize: 10, color: "#555", fontFamily: "'DM Mono',monospace" }}>{cat.resources.length} resources</div>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: window.innerWidth < 500 ? "1fr" : "1fr 1fr", gap: 10 }}>
+                  {cat.resources.map(r => (
+                    <div key={r.id} style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${cat.color}33`, borderRadius: 8, padding: "11px 14px" }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: "#fff", marginBottom: 3 }}>{r.label}</div>
+                      <div style={{ fontSize: 11, color: "#888", lineHeight: 1.5, marginBottom: r.dependents.length ? 6 : 0 }}>{r.description}</div>
+                      {r.dependents.length > 0 && (
+                        <div style={{ fontSize: 10, color: cat.color, fontFamily: "'DM Mono',monospace" }}>
+                          → {r.dependents.map(d => ALL_RESOURCES.find(x => x.id === d)?.label).join(", ")}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+            <button onClick={() => setStep(3)} style={{ background: "#fff", color: "#1a1a2e", border: "none", borderRadius: 8, padding: "13px 28px", fontSize: 14, fontWeight: 700, cursor: "pointer", marginTop: 8 }}>
+              Begin Stress Test →
+            </button>
+          </div>
+        )}
+
+        {/* STEP 3 — STRESS TEST */}
+        {step === 3 && (
+          <div className="fade-in">
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
+              <div style={{ fontSize: 13, color: "#777" }}>Adjust resources below. The model shows whether IBS 1 remains deliverable.</div>
+              <button onClick={reset} style={{ background: "transparent", border: "1px solid rgba(255,255,255,0.18)", color: "#aaa", borderRadius: 6, padding: "6px 14px", fontSize: 12, cursor: "pointer" }}>Reset</button>
+            </div>
+
+            <Banner systemState={systemState} breaches={breaches} warnings={warnings} cascades={cascades} />
+            <Cascades cascades={cascades} />
+            <VulnPanel vulnerabilities={vulnerabilities} discussionMode={discussionMode} onToggle={() => setDiscussionMode(d => !d)} />
+
+            {RESOURCE_CATEGORIES.map(cat => (
+              <div key={cat.id} style={{ marginBottom: 22 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, paddingBottom: 8, borderBottom: `2px solid ${cat.color}44` }}>
+                  <div style={{ width: 11, height: 11, borderRadius: 3, background: cat.color, flexShrink: 0 }} />
+                  <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 16, color: "#fff", fontWeight: 700 }}>{cat.label}</div>
+                </div>
+                {cat.resources.map(r => (
+                  <Slider key={r.id} resource={r} value={values[r.id]} onChange={change} state={rs[r.id]?.state || "green"} />
+                ))}
+              </div>
+            ))}
+          </div>
+        )}
+
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
