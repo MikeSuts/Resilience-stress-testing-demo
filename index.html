@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>IBS 1 Resilience Stress Test · Cranfield School of Management</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:ital,wght@0,300;0,400;0,600;0,700;0,800;0,900;1,400&family=Playfair+Display:ital,wght@0,700;0,900;1,700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #f0f3f9; font-family: 'Nunito Sans', sans-serif; color: #4a5568; min-height: 100vh; }
+
+    input[type=range] { -webkit-appearance: none; appearance: none; background: transparent; width: 100%; cursor: pointer; height: 22px; }
+    input[type=range]::-webkit-slider-runnable-track { height: 5px; border-radius: 3px; }
+    input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 18px; width: 18px; border-radius: 50%; margin-top: -6.5px; box-shadow: 0 1px 5px rgba(0,0,0,0.25); transition: transform 0.15s; }
+    input[type=range]::-webkit-slider-thumb:active { transform: scale(1.2); }
+    input[type=range]::-moz-range-track { height: 5px; border-radius: 3px; }
+    input[type=range]::-moz-range-thumb { height: 18px; width: 18px; border-radius: 50%; border: none; box-shadow: 0 1px 5px rgba(0,0,0,0.25); }
+
+    @keyframes pulse-red { 0%,100%{box-shadow:0 0 0 3px rgba(229,57,53,0.3);}50%{box-shadow:0 0 0 9px rgba(229,57,53,0.06);} }
+    @keyframes fadeUp { from{opacity:0;transform:translateY(12px);}to{opacity:1;transform:translateY(0);} }
+    @keyframes spin { to{transform:rotate(360deg);} }
+    @keyframes calcPulse { 0%,100%{opacity:0.45;}50%{opacity:1;} }
+    @keyndef slideIn { from{opacity:0;transform:translateX(-8px);}to{opacity:1;transform:translateX(0);} }
+
+    .fade-up { animation: fadeUp 0.35s ease forwards; }
+    .slide-in { animation: slideIn 0.3s ease forwards; }
+
+    .primary-btn {
+      background: #1B3A6B; color: #fff; border: none; border-radius: 10px;
+      padding: 15px 32px; font-size: 15px; font-weight: 800; cursor: pointer;
+      font-family: 'Nunito Sans', sans-serif; transition: all 0.2s; letter-spacing: 0.3px;
+      box-shadow: 0 4px 14px rgba(27,58,107,0.3);
+    }
+    .primary-btn:hover { background: #122848; box-shadow: 0 6px 20px rgba(27,58,107,0.4); transform: translateY(-1px); }
+    .primary-btn:active { transform: translateY(0); }
+    .primary-btn:disabled { background: #94a3b8; cursor: not-allowed; box-shadow: none; transform: none; }
+
+    .ghost-btn {
+      background: transparent; color: #1B3A6B; border: 2px solid #dde3ee;
+      border-radius: 8px; padding: 9px 18px; font-size: 12px; font-weight: 700;
+      cursor: pointer; font-family: 'Nunito Sans', sans-serif; transition: all 0.2s;
+    }
+    .ghost-btn:hover { border-color: #1B3A6B; background: #f4f6fb; }
+
+    .card { background: #fff; border-radius: 14px; border: 1px solid #e2e8f0; padding: 26px; box-shadow: 0 2px 8px rgba(27,58,107,0.07); }
+
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-track { background: #f0f3f9; }
+    ::-webkit-scrollbar-thumb { background: #dde3ee; border-radius: 3px; }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useMemo } = React;
+
+// ── TOKENS ────────────────────────────────────────────────────────────────────
+const T = {
+  navy:'#1B3A6B', navyDark:'#122848', navyMid:'#2a5298',
+  navyLight:'#e8edf5', navyPale:'#f4f6fb', navyBorder:'#dde3ee',
+  white:'#ffffff', grey:'#4a5568', greyL:'#e2e8f0', greyM:'#94a3b8',
+  green:'#276221', greenBg:'#eaf5e9', greenB:'#4caf50',
+  amber:'#7a3a00', amberBg:'#fff8e1', amberB:'#f59e0b',
+  red:'#9b1c1c', redBg:'#fef2f2', redB:'#ef4444',
+  dim:{ workforce:'#1e429f', infrastructure:'#065f46', social:'#78350f', environment:'#14532d', finance:'#581c87' }
+};
+
+const SC = {
+  green:{ bg:T.greenBg, border:T.greenB, text:T.green, dot:T.greenB, track:'#bbf7d0', thumb:T.greenB },
+  amber:{ bg:T.amberBg, border:T.amberB, text:T.amber, dot:T.amberB, track:'#fde68a', thumb:T.amberB },
+  red:  { bg:T.redBg,   border:T.redB,   text:T.red,   dot:T.redB,   track:'#fecaca', thumb:T.redB   },
+};
+
+// ── DATA ──────────────────────────────────────────────────────────────────────
+const DIMENSIONS = [
+  { id:'workforce', label:'Workforce', color:T.dim.workforce, desc:'People and expertise dedicated to programme delivery',
+    resources:[
+      { id:'perm_faculty', label:'Permanent Faculty', desc:'Core academic staff delivering taught sessions', unit:'% available',
+        default:100, amberAt:80, redAt:65, dependents:['visiting_practitioners','supervision'],
+        depNote:'Pressure shifts onto visiting practitioners and supervision load increases.',
+        consequence:'Students receive less than the minimum faculty contact hours required by programme regulations — academic progression is formally at risk.' },
+      { id:'visiting_practitioners', label:'Visiting Practitioners', desc:'Industry experts delivering applied content', unit:'% of sessions confirmed',
+        default:100, amberAt:75, redAt:55, dependents:['contact_hours'],
+        depNote:'Applied learning sessions cannot be substituted by permanent faculty alone.',
+        consequence:'Students complete modules without exposure to current industry practice — the applied leadership capability Cranfield promises cannot be demonstrated at assessment.' },
+      { id:'supervision', label:'Supervision Allocation', desc:'Individual supervisor time per student', unit:'% of contracted hours',
+        default:100, amberAt:80, redAt:60, dependents:['feedback_cycle'],
+        depNote:'Feedback turnaround begins to exceed the 10-day threshold.',
+        consequence:'Students cannot act on developmental feedback within the programme cycle — learning continuity breaks and formal complaints become likely.' },
+      { id:'faculty_dev', label:'Faculty Development Time', desc:'Time for curriculum refresh and preparation', unit:'% of allocated time',
+        default:100, amberAt:70, redAt:50, dependents:['curriculum_currency'],
+        depNote:'Curriculum currency degrades — content begins to lag industry practice.',
+        consequence:'Students leave with management knowledge that does not reflect the organisations they are returning to — the core promise of the programme is quietly broken.' },
+    ]
+  },
+  { id:'infrastructure', label:'Infrastructure', color:T.dim.infrastructure, desc:'Physical and digital assets required for delivery',
+    resources:[
+      { id:'teaching_spaces', label:'Teaching Spaces', desc:'Classrooms, seminar rooms, breakout spaces', unit:'% of scheduled capacity available',
+        default:100, amberAt:80, redAt:65, dependents:['cohort_participation'],
+        depNote:'Cohort must be split across sessions, reducing peer learning integrity.',
+        consequence:'The cohort-based learning model that differentiates Cranfield cannot function — students are paying for an experience the School cannot physically deliver.' },
+      { id:'hybrid_tech', label:'Hybrid Delivery Technology', desc:'AV, streaming and collaboration platforms', unit:'% of sessions fully supported',
+        default:100, amberAt:85, redAt:70, dependents:['cohort_participation','feedback_cycle'],
+        depNote:'Remote participants experience degraded access — effective cohort size falls.',
+        consequence:'Students without physical access to campus are excluded from the learning community — creating unequal outcomes within the same cohort and potential legal exposure.' },
+      { id:'vle', label:'Virtual Learning Environment', desc:'Learning platform, materials, submission portal', unit:'% uptime during teaching hours',
+        default:100, amberAt:90, redAt:80, dependents:['feedback_cycle','curriculum_currency'],
+        depNote:'Assignment submission and feedback delivery are disrupted simultaneously.',
+        consequence:'Assessment deadlines cannot be met through no fault of students — the School faces formal obligation to extend timelines, at cost to programme integrity and accreditor confidence.' },
+    ]
+  },
+  { id:'social', label:'Social', color:T.dim.social, desc:'Human relationships and cohort dynamics that enable learning',
+    resources:[
+      { id:'cohort_size', label:'Cohort Size', desc:'Students actively enrolled and participating', unit:'% of enrolled cohort',
+        default:100, amberAt:75, redAt:60, dependents:['cohort_participation'],
+        depNote:'The peer dynamic underpinning cohort-based learning begins to break down.',
+        consequence:'The peer learning environment that students specifically chose Cranfield for no longer exists — refund claims and reputational damage to cohort recruitment become likely.' },
+      { id:'cohort_participation', label:'Active Session Participation', desc:'Students attending and engaging in sessions', unit:'% attendance across sessions',
+        default:100, amberAt:70, redAt:55, dependents:[],
+        depNote:'Group work quality and peer challenge — core to the Cranfield method — is compromised.',
+        consequence:'Students cannot demonstrate the leadership and group decision-making competencies required for programme completion — assessment outcomes are invalidated.' },
+      { id:'curriculum_currency', label:'Curriculum Currency', desc:'Relevance of content to current industry practice', unit:'% of modules reviewed within 12 months',
+        default:100, amberAt:80, redAt:65, dependents:[],
+        depNote:'Students develop capabilities that lag current leadership practice.',
+        consequence:'Employer-sponsors lose confidence in the return on investment — cohort renewal declines and Cranfield\'s accreditation bodies identify a gap between stated and delivered outcomes.' },
+      { id:'feedback_cycle', label:'Assessment Feedback Cycle', desc:'Feedback returned within 10 working days', unit:'% of feedback returned on time',
+        default:100, amberAt:85, redAt:70, dependents:[],
+        depNote:'Students cannot act on feedback within the programme cycle.',
+        consequence:'Students raise formal complaints citing breach of programme contract — creating precedent applicable across the cohort and triggering regulatory scrutiny.' },
+    ]
+  },
+  { id:'environment', label:'Environment', color:T.dim.environment, desc:'Natural capital and physical campus conditions', isNatural:true,
+    resources:[
+      { id:'campus_env', label:'Campus Environment Quality', desc:'Green space, air quality and wellbeing conditions', unit:'% of normal conditions',
+        default:100, amberAt:75, redAt:55, dependents:['cohort_participation'],
+        depNote:'Conditions supporting cognitive performance and student wellbeing are compromised.',
+        consequence:'Students report that the physical environment no longer supports the quality of learning they were promised — satisfaction scores fall and the campus premium is difficult to justify.' },
+      { id:'env_stability', label:'Environmental Stability', desc:'Absence of disruption from extreme weather or physical hazards', unit:'% of sessions unaffected',
+        default:100, amberAt:70, redAt:50, dependents:['teaching_spaces','cohort_participation'],
+        depNote:'Physical disruption begins to affect access to teaching spaces.',
+        consequence:'Programme delivery is suspended or significantly curtailed — students face uncertainty about completion timelines and employers begin to question programme reliability.' },
+      { id:'estate_sustainability', label:'Estate Sustainability', desc:'Long-term stewardship of the physical environment', unit:'% of estate meeting standard',
+        default:100, amberAt:80, redAt:65, dependents:['teaching_spaces'],
+        depNote:'Deferred maintenance reduces usable teaching space progressively.',
+        consequence:'The physical estate no longer reflects the premium positioning of the programme — corporate sponsors conducting due diligence observe a gap between brand and reality.' },
+    ]
+  },
+];
+
+const FINANCE = [
+  { id:'prog_budget',       label:'Programme Budget',          desc:'Funding allocated to deliver this cohort',            feeds:['perm_faculty','visiting_practitioners'] },
+  { id:'tech_spend',        label:'Technology & Platform Spend', desc:'Budget sustaining digital infrastructure',           feeds:['hybrid_tech','vle'] },
+  { id:'facilities_spend',  label:'Facilities & Estate Spend', desc:'Budget for physical spaces and maintenance',          feeds:['teaching_spaces','estate_sustainability'] },
+  { id:'student_continuity',label:'Student Financial Continuity', desc:'Students remaining funded and enrolled throughout', feeds:['cohort_size'] },
+];
+
+const ALL_RES = DIMENSIONS.flatMap(d => d.resources);
+
+const MECHS = {
+  redundancy:  { label:'Redundancy',  icon:'⊕', color:'#1e429f', desc:'Build backup capacity so that when a resource fails, an equivalent replaces it without degrading the service.' },
+  flexibility: { label:'Flexibility', icon:'⟳', color:'#065f46', desc:'Design resources and processes to reconfigure quickly in response to changing conditions.' },
+  diversity:   { label:'Diversity',   icon:'◈', color:'#78350f', desc:'Use a variety of resource types so that no single failure point can take down the whole system.' },
+  modularity:  { label:'Modularity',  icon:'⧉', color:'#581c87', desc:'Structure delivery so components can be isolated or rescheduled without cascading failure.' },
+};
+
+const RECS = {
+  perm_faculty:           { m:'redundancy',  why:'Permanent faculty is a single-point resource. An expanded practitioner pool authorised to deliver core sessions is the primary protection.', action:'Maintain a standing pool of at least 3 qualified practitioners per module available at short notice.' },
+  visiting_practitioners: { m:'diversity',   why:'Visiting practitioners are inherently variable. Diversity across sectors and formats ensures no single cancellation depletes the applied offer.', action:'Source practitioners across at least three industries and two seniority levels per cohort.' },
+  supervision:            { m:'modularity',  why:'Supervision cascades into feedback timing. Modular handover protocols ensure continuity when individual supervisors are unavailable.', action:'Assign each student a primary and secondary supervisor with shared progress records.' },
+  faculty_dev:            { m:'flexibility', why:'Curriculum currency depends on development time that is protected but portable.', action:'Protect development time as a standing commitment — moveable within term, never cancelled.' },
+  teaching_spaces:        { m:'flexibility', why:'Space constraints are resolved through flexible delivery design — sessions that work in-person, split-cohort, or hybrid without redesign.', action:'Certify all taught sessions for hybrid delivery so any space reduction triggers a pre-tested fallback.' },
+  hybrid_tech:            { m:'redundancy',  why:'Technology failure is binary and fast-cascading. Redundant platforms with tested fallback protocols are the most reliable protection.', action:'Maintain a secondary streaming platform with a documented switch-over protocol tested each term.' },
+  vle:                    { m:'redundancy',  why:'VLE outage disrupts submission and feedback simultaneously. A redundant content channel preserves continuity.', action:'Mirror all active module materials to a secondary shared drive accessible without VLE login.' },
+  cohort_size:            { m:'modularity',  why:'Cohort integrity is protected by modular design ensuring peer learning functions with smaller sub-groups.', action:'Design all group activities to function with sub-groups of 4–6, independent of full cohort presence.' },
+  cohort_participation:   { m:'flexibility', why:'Participation variability is best absorbed through flexible session design — asynchronous options that maintain continuity without penalising absence.', action:'Record all core taught sessions with structured reflection prompts for asynchronous engagement.' },
+  curriculum_currency:    { m:'diversity',   why:'Curriculum currency is best maintained through diverse review inputs — not relying solely on faculty development time.', action:'Convene a practitioner advisory panel each term to review applied content relevance.' },
+  feedback_cycle:         { m:'flexibility', why:'Feedback cycles depend on multiple resources. Staged feedback points distribute load and prevent cascade from supervision pressure.', action:'Replace single-point submissions with staged checkpoints, each with a defined 5-day feedback window.' },
+  campus_env:             { m:'modularity',  why:'Campus environment degradation affects wellbeing and performance. Modular design allows delivery to flex across alternative locations.', action:'Map and certify alternative delivery locations across the campus estate.' },
+  env_stability:          { m:'redundancy',  why:'Environmental disruption is unpredictable and rapid. Pre-certified hybrid and off-campus options are the most reliable protection.', action:'Maintain pre-approved off-campus and fully remote delivery protocols tested annually.' },
+  estate_sustainability:  { m:'modularity',  why:'Estate degradation reduces usable space progressively. Modular timetabling allows rapid reallocation as spaces become unavailable.', action:'Maintain a live register of teaching space capacity with pre-assigned reallocation protocols.' },
+};
+
+const SCENARIOS = [
+  { id:'baseline', name:'Steady State', subtitle:'All dimensions fully operational', tag:'GREEN', tagColor:T.greenB,
+    desc:'A programme running at full capacity across all dimensions. Used to establish what a resilient baseline looks like and confirm all tolerances are comfortably met.',
+    values: Object.fromEntries(ALL_RES.map(r=>[r.id,100])),
+    finance: Object.fromEntries(FINANCE.map(f=>[f.id,'healthy'])) },
+  { id:'workforce_shock', name:'Workforce Under Pressure', subtitle:'Single dimension stress propagating outward', tag:'AMBER', tagColor:T.amberB,
+    desc:'Workforce resources are significantly degraded, triggering cascades into contact hours and feedback. Other dimensions remain stable. Demonstrates how pressure in one area propagates through dependencies.',
+    values:{perm_faculty:62,visiting_practitioners:58,supervision:65,faculty_dev:55,teaching_spaces:100,hybrid_tech:100,vle:100,cohort_size:90,cohort_participation:82,curriculum_currency:85,feedback_cycle:88,campus_env:100,env_stability:100,estate_sustainability:100},
+    finance:{prog_budget:'pressured',tech_spend:'healthy',facilities_spend:'healthy',student_continuity:'healthy'} },
+  { id:'slow_erosion', name:'Slow Erosion', subtitle:'Cumulative drift across multiple dimensions', tag:'RED', tagColor:T.redB,
+    desc:'No single catastrophic failure — a pattern of gradual decline across workforce, infrastructure and social dimensions. Demonstrates how cumulative drift reaches tolerance breach without any obvious trigger.',
+    values:{perm_faculty:72,visiting_practitioners:68,supervision:72,faculty_dev:62,teaching_spaces:74,hybrid_tech:76,vle:82,cohort_size:68,cohort_participation:61,curriculum_currency:70,feedback_cycle:73,campus_env:78,env_stability:85,estate_sustainability:76},
+    finance:{prog_budget:'pressured',tech_spend:'pressured',facilities_spend:'pressured',student_continuity:'pressured'} },
+  { id:'cliff_edge', name:'Sudden Infrastructure Collapse', subtitle:'Single catastrophic failure hitting tolerance immediately', tag:'RED', tagColor:T.redB,
+    desc:'A single infrastructure resource collapses, triggering immediate cascade across cohort participation, feedback and curriculum access. Demonstrates cliff-edge threshold behaviour — the system was fine, then it wasn\'t.',
+    values:{perm_faculty:95,visiting_practitioners:90,supervision:88,faculty_dev:85,teaching_spaces:90,hybrid_tech:20,vle:15,cohort_size:88,cohort_participation:38,curriculum_currency:72,feedback_cycle:30,campus_env:95,env_stability:92,estate_sustainability:90},
+    finance:{prog_budget:'healthy',tech_spend:'critical',facilities_spend:'healthy',student_continuity:'healthy'} },
+];
+
+// ── COMPUTATION ───────────────────────────────────────────────────────────────
+function computeState(values) {
+  const rs = {};
+  const cascades = [], breaches = [], warnings = [];
+  ALL_RES.forEach(r => {
+    const v = values[r.id] ?? 100;
+    let state = 'green';
+    if (v <= r.redAt) state = 'red';
+    else if (v <= r.amberAt) state = 'amber';
+    rs[r.id] = { value: v, state };
+    if (state === 'red') breaches.push(r);
+    else if (state === 'amber') warnings.push(r);
+    if (state !== 'green') r.dependents.forEach(dep => cascades.push({ from: r.id, to: dep, severity: state }));
+  });
+  let sys = 'green';
+  if (breaches.length > 0) sys = 'red';
+  else if (warnings.length > 0 || cascades.length > 0) sys = 'amber';
+  const vulns = [...new Map([...breaches, ...warnings.filter(r => cascades.some(c => c.from === r.id))].map(r => [r.id, r])).values()];
+  return { rs, sys, breaches, warnings, cascades, vulns };
+}
+
+// ── HEADER ────────────────────────────────────────────────────────────────────
+function Header({ step, setStep, completedSteps }) {
+  const steps = [
+    { label:'Scenario',   icon:'①' },
+    { label:'IBS',        icon:'②' },
+    { label:'Resources',  icon:'③' },
+    { label:'Tolerance',  icon:'④' },
+    { label:'Stress Test',icon:'⑤' },
+  ];
+  return (
+    <div style={{ background: T.navy, borderBottom:`3px solid ${T.navyMid}`, position:'sticky', top:0, zIndex:100, boxShadow:'0 4px 20px rgba(27,58,107,0.4)' }}>
+      <div style={{ maxWidth:1140, margin:'0 auto', padding:'16px 20px 0' }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:12, flexWrap:'wrap', gap:8 }}>
+          <div>
+            <div style={{ fontSize:9, letterSpacing:3, color:'rgba(255,255,255,0.4)', fontWeight:800, textTransform:'uppercase', marginBottom:4 }}>Cranfield School of Management · Resilience Programme</div>
+            <div style={{ fontFamily:"'Playfair Display',serif", fontSize:20, fontWeight:900, color:'#fff', lineHeight:1.2 }}>IBS 1 — Students as Learners</div>
+          </div>
+          <div style={{ fontSize:10, color:'rgba(255,255,255,0.35)', fontStyle:'italic', alignSelf:'flex-end', paddingBottom:2 }}>Impact Tolerance &amp; Stress Testing Model</div>
+        </div>
+        <div style={{ display:'flex', gap:3, overflowX:'auto', paddingBottom:0 }}>
+          {steps.map((s, i) => {
+            const isActive = step === i;
+            const isDone = completedSteps.includes(i);
+            return (
+              <button key={i} onClick={() => setStep(i)} style={{
+                background: isActive ? '#fff' : isDone ? 'rgba(255,255,255,0.14)' : 'transparent',
+                border: `1px solid ${isActive ? '#fff' : isDone ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.1)'}`,
+                borderBottom: 'none', borderRadius:'8px 8px 0 0',
+                padding:'8px 14px', cursor:'pointer',
+                fontFamily:"'Nunito Sans',sans-serif", fontWeight:800, fontSize:11,
+                color: isActive ? T.navy : isDone ? 'rgba(255,255,255,0.8)' : 'rgba(255,255,255,0.3)',
+                whiteSpace:'nowrap', transition:'all 0.2s', display:'flex', alignItems:'center', gap:5,
+              }}>
+                {isDone && !isActive && <span style={{ fontSize:9, color:T.greenB }}>✓</span>}
+                <span>{s.icon}</span>
+                <span>{s.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── SLIDER ────────────────────────────────────────────────────────────────────
+function CompactSlider({ resource, value, onChange, state, dimColor }) {
+  const s = SC[state];
+  const trackColor = state === 'green' ? T.greyL : s.track;
+  const thumbColor = state === 'green' ? dimColor : s.thumb;
+
+  return (
+    <div style={{ marginBottom:7, padding:'9px 11px', background: state==='green'?'#fafbfd':s.bg, border:`1px solid ${state==='green'?T.navyBorder:s.border}`, borderLeft:`3px solid ${state==='green'?dimColor:s.border}`, borderRadius:8, transition:'all 0.3s' }}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:4 }}>
+        <div style={{ fontSize:11, fontWeight:800, color:T.navy, flex:1, paddingRight:8, lineHeight:1.3 }}>{resource.label}</div>
+        <div style={{ fontSize:13, fontWeight:900, color: state==='green'?T.navy:s.text, minWidth:34, textAlign:'right' }}>{value}%</div>
+      </div>
+      <style>{`#sl-${resource.id}::-webkit-slider-runnable-track{background:${trackColor};}#sl-${resource.id}::-webkit-slider-thumb{background:${thumbColor};}#sl-${resource.id}::-moz-range-track{background:${trackColor};}#sl-${resource.id}::-moz-range-thumb{background:${thumbColor};}`}</style>
+      <input id={`sl-${resource.id}`} type="range" min={0} max={100} value={value} onChange={e => onChange(resource.id, +e.target.value)} />
+      <div style={{ display:'flex', justifyContent:'space-between', fontSize:9, color:T.greyM, marginTop:1 }}>
+        <span>0</span>
+        <span style={{ color:T.amberB }}>⚠{resource.amberAt}</span>
+        <span style={{ color:T.redB }}>✕{resource.redAt}</span>
+        <span>100</span>
+      </div>
+      {state !== 'green' && (
+        <div style={{ marginTop:6, fontSize:10, color:s.text, lineHeight:1.4, borderTop:`1px solid ${s.border}44`, paddingTop:5 }}>
+          <div style={{ marginBottom:3 }}><span style={{ fontWeight:800 }}>↳ Cascade: </span>{resource.depNote}</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── TOLERANCE BAR ─────────────────────────────────────────────────────────────
+function ToleranceBar({ label, amberAt, redAt }) {
+  return (
+    <div style={{ marginBottom:10 }}>
+      <div style={{ fontSize:11, fontWeight:800, color:T.navy, marginBottom:5 }}>{label}</div>
+      <div style={{ position:'relative', height:14, borderRadius:7, overflow:'hidden', background:T.greyL }}>
+        <div style={{ position:'absolute', left:0, top:0, height:'100%', width:`${redAt}%`, background:T.redB, opacity:0.7 }}/>
+        <div style={{ position:'absolute', left:0, top:0, height:'100%', width:`${amberAt}%`, background:T.amberB, opacity:0.7 }}/>
+        <div style={{ position:'absolute', left:0, top:0, height:'100%', width:'100%', background:T.greenB, opacity:0.5, mixBlendMode:'multiply' }}/>
+        <div style={{ position:'absolute', left:`${redAt}%`, top:0, bottom:0, width:2, background:'#fff', opacity:0.8 }}/>
+        <div style={{ position:'absolute', left:`${amberAt}%`, top:0, bottom:0, width:2, background:'#fff', opacity:0.6 }}/>
+      </div>
+      <div style={{ display:'flex', justifyContent:'space-between', fontSize:9, color:T.greyM, marginTop:3 }}>
+        <span style={{ color:T.redB }}>✕ Breach at {redAt}%</span>
+        <span style={{ color:T.amberB }}>⚠ Pressure at {amberAt}%</span>
+        <span style={{ color:T.green }}>✓ Safe above {amberAt}%</span>
+      </div>
+    </div>
+  );
+}
+
+// ── FINANCE BADGE ─────────────────────────────────────────────────────────────
+function FinanceBadge({ id, status }) {
+  const fi = FINANCE.find(f => f.id === id);
+  const cols = {
+    healthy:  { bg:T.greenBg, border:T.greenB, text:T.green, label:'Healthy'   },
+    pressured:{ bg:T.amberBg, border:T.amberB, text:T.amber, label:'Pressured' },
+    critical: { bg:T.redBg,   border:T.redB,   text:T.red,   label:'Critical'  },
+  };
+  const col = cols[status] || cols.healthy;
+  return (
+    <div style={{ background:col.bg, border:`1px solid ${col.border}`, borderRadius:8, padding:'8px 11px', marginBottom:7 }}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
+        <div style={{ flex:1 }}>
+          <div style={{ fontSize:11, fontWeight:800, color:T.navy }}>{fi?.label}</div>
+          <div style={{ fontSize:10, color:T.greyM, marginTop:1 }}>{fi?.desc}</div>
+          <div style={{ fontSize:10, color:T.dim.finance, fontWeight:700, marginTop:2 }}>→ {fi?.feeds.map(fid => ALL_RES.find(r=>r.id===fid)?.label).join(', ')}</div>
+        </div>
+        <span style={{ fontSize:9, fontWeight:800, color:col.text, background:col.border+'22', border:`1px solid ${col.border}`, borderRadius:20, padding:'2px 8px', marginLeft:8, whiteSpace:'nowrap' }}>{col.label}</span>
+      </div>
+    </div>
+  );
+}
+
+// ── OUTPUT PANEL ──────────────────────────────────────────────────────────────
+function OutputPanel({ result, finance, hasRun, isCalculating, discussionMode, onToggleDiscussion }) {
+  const [picks, setPicks] = useState({});
+
+  if (!hasRun && !isCalculating) return (
+    <div style={{ background:'#fff', borderRadius:14, border:`1px solid ${T.greyL}`, padding:32, textAlign:'center', minHeight:320, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', boxShadow:'0 2px 8px rgba(27,58,107,0.07)' }}>
+      <div style={{ fontSize:44, marginBottom:14, opacity:0.15, color:T.navy }}>◎</div>
+      <div style={{ fontSize:15, color:T.greyM, fontWeight:800 }}>Awaiting stress test</div>
+      <div style={{ fontSize:12, color:T.greyM, marginTop:8, maxWidth:220, lineHeight:1.6 }}>Adjust the resource sliders, then press <strong>Run Stress Test</strong></div>
+    </div>
+  );
+
+  if (isCalculating) return (
+    <div style={{ background:'#fff', borderRadius:14, border:`1px solid ${T.greyL}`, padding:32, textAlign:'center', minHeight:320, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', boxShadow:'0 2px 8px rgba(27,58,107,0.07)' }}>
+      <div style={{ width:42, height:42, border:`3px solid ${T.navyLight}`, borderTopColor:T.navy, borderRadius:'50%', animation:'spin 0.8s linear infinite', marginBottom:16 }}/>
+      <div style={{ fontSize:14, color:T.navy, fontWeight:800, animation:'calcPulse 1.2s ease-in-out infinite' }}>Analysing system state...</div>
+      <div style={{ fontSize:11, color:T.greyM, marginTop:6 }}>Evaluating resource interdependencies</div>
+    </div>
+  );
+
+  const { sys, breaches, warnings, cascades, vulns } = result;
+  const s = SC[sys];
+  const SL = { green:'Within Tolerance', amber:'Tolerance Under Pressure', red:'Tolerance Breached' };
+
+  return (
+    <div className="fade-up">
+
+      {/* 1. VULNERABILITIES FIRST — the point of the exercise */}
+      {vulns.length > 0 && (
+        <div style={{ background:T.navy, borderRadius:14, padding:'16px 16px', marginBottom:14 }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
+            <div style={{ fontFamily:"'Playfair Display',serif", fontSize:16, fontWeight:700, color:'#fff' }}>Identified Vulnerabilities</div>
+            <button onClick={onToggleDiscussion} style={{ background: discussionMode?T.amberB:'transparent', color: discussionMode?T.navy:T.amberB, border:`1.5px solid ${T.amberB}`, borderRadius:20, padding:'5px 13px', fontSize:10, fontWeight:800, cursor:'pointer', fontFamily:"'Nunito Sans',sans-serif", transition:'all 0.2s' }}>
+              {discussionMode ? '✓ Discussion Mode' : 'Discussion Mode'}
+            </button>
+          </div>
+          {vulns.map(r => {
+            const rec = RECS[r.id]; if (!rec) return null;
+            const m = MECHS[rec.m];
+            return (
+              <div key={r.id} style={{ background:'rgba(255,255,255,0.05)', borderRadius:10, padding:'12px 13px', marginBottom:10, borderLeft:`3px solid ${m.color}` }}>
+                {/* Consequence — leads visually */}
+                <div style={{ background:`${m.color}18`, borderRadius:7, padding:'9px 11px', marginBottom:8 }}>
+                  <div style={{ fontSize:10, fontWeight:800, color:m.color, textTransform:'uppercase', letterSpacing:1.5, marginBottom:4 }}>Consequence if unaddressed</div>
+                  <div style={{ fontSize:13, fontWeight:700, color:'#fff', lineHeight:1.5, fontStyle:'italic' }}>{r.consequence}</div>
+                </div>
+                <div style={{ fontSize:12, fontWeight:800, color:'rgba(255,255,255,0.6)', marginBottom:6 }}>{r.label}</div>
+
+                {!discussionMode ? (
+                  <div style={{ background:`${m.color}22`, borderRadius:7, padding:'9px 11px' }}>
+                    <div style={{ display:'flex', alignItems:'center', gap:7, marginBottom:5 }}>
+                      <span style={{ fontSize:16 }}>{m.icon}</span>
+                      <span style={{ fontSize:13, fontWeight:800, color:m.color }}>Recommended: {m.label}</span>
+                    </div>
+                    <div style={{ fontSize:11, color:'#ccc', marginBottom:5, lineHeight:1.5 }}><span style={{ color:'#fff', fontWeight:700 }}>Why: </span>{rec.why}</div>
+                    <div style={{ fontSize:11, color:'#bbb', lineHeight:1.5, fontStyle:'italic' }}><span style={{ color:'#ddd', fontStyle:'normal', fontWeight:700 }}>Action: </span>{rec.action}</div>
+                  </div>
+                ) : (
+                  <div>
+                    <div style={{ fontSize:11, color:T.amberB, fontWeight:800, marginBottom:7 }}>Which mechanism would you apply to prevent this consequence? Select and defend.</div>
+                    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:6, marginBottom:7 }}>
+                      {Object.entries(MECHS).map(([k, mx]) => {
+                        const sel = picks[r.id] === k;
+                        return (
+                          <button key={k} onClick={() => setPicks(p => ({...p,[r.id]:k}))} style={{ background: sel?`${mx.color}33`:'rgba(255,255,255,0.05)', border:`1.5px solid ${sel?mx.color:'rgba(255,255,255,0.1)'}`, borderRadius:7, padding:'8px 9px', cursor:'pointer', textAlign:'left', transition:'all 0.15s' }}>
+                            <div style={{ fontSize:14, marginBottom:2 }}>{mx.icon}</div>
+                            <div style={{ fontSize:11, fontWeight:800, color: sel?mx.color:'#bbb' }}>{mx.label}</div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {picks[r.id] && (
+                      <div style={{ padding:'9px 11px', borderRadius:7, background: picks[r.id]===rec.m?'rgba(76,175,80,0.12)':'rgba(245,158,11,0.1)', border:`1px solid ${picks[r.id]===rec.m?T.greenB:T.amberB}` }}>
+                        <div style={{ fontSize:11, color:'#ccc', marginBottom:4, lineHeight:1.5 }}>{MECHS[picks[r.id]].desc}</div>
+                        {picks[r.id]===rec.m
+                          ? <div style={{ fontSize:10, color:T.greenB, fontWeight:700 }}>✓ Matches model recommendation — {rec.why}</div>
+                          : <div style={{ fontSize:10, color:T.amberB }}>Model recommends <strong>{MECHS[rec.m].label}</strong> here. Can you argue why? Or make the case for your choice.</div>}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* 2. SYSTEM STATUS */}
+      <div style={{ background:s.bg, border:`2px solid ${s.border}`, borderRadius:12, padding:'14px 17px', marginBottom:12 }}>
+        <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:5 }}>
+          <div style={{ width:13, height:13, borderRadius:'50%', background:s.dot, flexShrink:0, animation:sys==='red'?'pulse-red 1.5s infinite':'none' }}/>
+          <div style={{ fontFamily:"'Playfair Display',serif", fontSize:17, fontWeight:700, color:s.text }}>{SL[sys]}</div>
+        </div>
+        <div style={{ fontSize:13, color:sys==='green'?T.grey:s.text, lineHeight:1.6 }}>
+          {sys==='green' && 'All resources within operating thresholds. The IBS 1 promise is currently deliverable.'}
+          {sys==='amber' && `${warnings.length} resource${warnings.length!==1?'s':''} under pressure${cascades.length>0?`, ${cascades.length} cascade${cascades.length!==1?'s':''} active`:''}.  The promise is at risk — further degradation will breach tolerance.`}
+          {sys==='red' && <><strong>{breaches.length} resource{breaches.length!==1?'s':''} below threshold.</strong> Cranfield cannot currently deliver the full promise of IBS 1.</>}
+        </div>
+      </div>
+
+      {/* 3. CASCADES — evidence chain */}
+      {cascades.length > 0 && (
+        <div style={{ background:T.amberBg, border:`1px solid ${T.amberB}`, borderRadius:10, padding:'12px 14px', marginBottom:12 }}>
+          <div style={{ fontFamily:"'Playfair Display',serif", fontSize:13, fontWeight:700, color:T.amber, marginBottom:8 }}>Dependency Cascade Chain</div>
+          {cascades.map((c, i) => {
+            const fr = ALL_RES.find(r=>r.id===c.from);
+            const to = ALL_RES.find(r=>r.id===c.to);
+            return (
+              <div key={i} style={{ display:'flex', alignItems:'center', gap:6, fontSize:11, marginBottom:4, color:T.grey }}>
+                <span style={{ background:SC[c.severity].border, color:'#fff', borderRadius:3, padding:'1px 6px', fontSize:9, fontWeight:800 }}>{c.severity.toUpperCase()}</span>
+                <span style={{ fontWeight:800 }}>{fr?.label}</span>
+                <span style={{ color:T.greyM }}>→</span>
+                <span style={{ fontWeight:800 }}>{to?.label}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* 4. FINANCE */}
+      <div style={{ marginBottom:4 }}>
+        <div style={{ fontSize:10, fontWeight:800, color:T.greyM, textTransform:'uppercase', letterSpacing:2, marginBottom:8 }}>Finance Enablers</div>
+        {FINANCE.map(fi => <FinanceBadge key={fi.id} id={fi.id} status={finance?.[fi.id]||'healthy'}/>)}
+      </div>
+
+      {sys==='green' && (
+        <div style={{ background:T.greenBg, border:`1px solid ${T.greenB}`, borderRadius:10, padding:'12px 14px', fontSize:12, color:T.green, lineHeight:1.6, marginTop:10 }}>
+          <strong>No vulnerabilities identified.</strong> Try degrading individual resources to observe cascade behaviour and threshold effects.
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── STEPS ─────────────────────────────────────────────────────────────────────
+function Step0({ onSelect, selectedScenario, setValues, setFinance, onNext }) {
+  return (
+    <div className="fade-up" style={{ maxWidth:1140, margin:'0 auto', padding:'28px 20px' }}>
+      <div style={{ marginBottom:20 }}>
+        <div style={{ fontFamily:"'Playfair Display',serif", fontSize:21, fontWeight:700, color:T.navy, marginBottom:8 }}>Select a Scenario</div>
+        <div style={{ fontSize:13, color:T.grey, lineHeight:1.75, maxWidth:720 }}>
+          Each scenario pre-loads a pattern of resource degradation — <strong>without specifying a cause</strong>. This is deliberate. The model is risk-agnostic: the same resource pattern could result from many different disruptions. The question is not <em>what caused it</em> — it is <em>whether the service can still be delivered</em> and <em>what needs to change to prevent future breach</em>.
+        </div>
+      </div>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(240px,1fr))', gap:14, marginBottom:24 }}>
+        {SCENARIOS.map(sc => {
+          const sel = selectedScenario?.id === sc.id;
+          return (
+            <button key={sc.id} onClick={() => { onSelect(sc); setValues({...sc.values}); setFinance({...sc.finance}); }}
+              style={{ background: sel?T.navy:T.white, border:`2px solid ${sel?T.navy:T.greyL}`, borderRadius:14, padding:'20px 18px', cursor:'pointer', textAlign:'left', transition:'all 0.2s', boxShadow: sel?`0 6px 20px ${T.navy}35`:'0 1px 4px rgba(27,58,107,0.07)' }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:8 }}>
+                <div style={{ fontFamily:"'Playfair Display',serif", fontSize:15, fontWeight:700, color:sel?'#fff':T.navy, lineHeight:1.3, flex:1, paddingRight:8 }}>{sc.name}</div>
+                <span style={{ fontSize:9, fontWeight:800, color:sel?'#fff':sc.tagColor, background:sel?sc.tagColor+'55':sc.tagColor+'18', border:`1px solid ${sc.tagColor}`, borderRadius:20, padding:'2px 8px', whiteSpace:'nowrap' }}>{sc.tag}</span>
+              </div>
+              <div style={{ fontSize:11, color:sel?'rgba(255,255,255,0.55)':T.greyM, fontWeight:700, marginBottom:8 }}>{sc.subtitle}</div>
+              <div style={{ fontSize:12, color:sel?'rgba(255,255,255,0.8)':T.grey, lineHeight:1.55 }}>{sc.desc}</div>
+            </button>
+          );
+        })}
+      </div>
+      {selectedScenario
+        ? <div style={{ display:'flex', alignItems:'center', gap:14, flexWrap:'wrap' }}>
+            <div style={{ background:T.navyLight, borderRadius:10, padding:'11px 16px', fontSize:13, color:T.navy, fontWeight:700 }}>✓ <strong>{selectedScenario.name}</strong> loaded — sliders pre-set on the Stress Test tab. Adjust freely before running.</div>
+            <button className="primary-btn" onClick={onNext}>Continue →</button>
+          </div>
+        : <div style={{ fontSize:12, color:T.greyM, fontStyle:'italic' }}>Select a scenario to continue, or proceed directly to define the IBS.</div>
+      }
+      <div style={{ marginTop:12 }}>
+        <button className="ghost-btn" onClick={onNext}>Skip to IBS Statement →</button>
+      </div>
+    </div>
+  );
+}
+
+function Step1({ onNext }) {
+  return (
+    <div className="fade-up" style={{ maxWidth:800, margin:'0 auto', padding:'28px 20px' }}>
+      <div className="card" style={{ marginBottom:16 }}>
+        <div style={{ fontSize:9, letterSpacing:3, color:T.greyM, fontWeight:800, textTransform:'uppercase', marginBottom:14 }}>The Promise</div>
+        <div style={{ fontFamily:"'Playfair Display',serif", fontSize:21, color:T.navy, lineHeight:1.7, marginBottom:22, fontStyle:'italic' }}>
+          "Students need to develop the leadership capability and management knowledge to be effective in their careers and organisations. They depend on Cranfield School of Management to make that possible."
+        </div>
+        <div style={{ background:T.navyPale, borderRadius:10, padding:'14px 16px', border:`1px solid ${T.navyBorder}`, marginBottom:18 }}>
+          <div style={{ fontSize:10, color:T.greyM, fontWeight:800, textTransform:'uppercase', letterSpacing:1, marginBottom:8 }}>Why it matters</div>
+          <div style={{ fontSize:14, color:T.grey, lineHeight:1.75 }}>If this promise fails, students leave without the capabilities they came for. Reputation suffers, recruitment declines, and the School's commercial and academic standing erodes.</div>
+        </div>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))', gap:8 }}>
+          {['Written in stakeholder terms','Describes an outcome, not an activity','Externally facing','A failure would be immediately recognisable'].map((t,i) => (
+            <div key={i} style={{ background:T.greenBg, borderRadius:8, padding:'9px 12px', fontSize:11, color:T.green, fontWeight:700, borderLeft:`3px solid ${T.greenB}` }}>✓ {t}</div>
+          ))}
+        </div>
+      </div>
+      <div style={{ background:'#fffbeb', border:`1px solid ${T.amberB}`, borderRadius:10, padding:'13px 16px', fontSize:13, color:T.amber, lineHeight:1.65, marginBottom:20 }}>
+        <strong>Now define what breaking this promise actually looks like in practice.</strong> The next step maps the resources that deliver it — so you can see what you are dependent on before you set thresholds.
+      </div>
+      <button className="primary-btn" onClick={onNext}>Map Resources →</button>
+    </div>
+  );
+}
+
+function Step2({ onNext }) {
+  return (
+    <div className="fade-up" style={{ maxWidth:980, margin:'0 auto', padding:'28px 20px' }}>
+      <div style={{ marginBottom:20 }}>
+        <div style={{ fontFamily:"'Playfair Display',serif", fontSize:21, fontWeight:700, color:T.navy, marginBottom:8 }}>Resource Map</div>
+        <div style={{ fontSize:13, color:T.grey, lineHeight:1.75, maxWidth:700 }}>
+          These are the resources dedicated exclusively to delivering IBS 1 — no cross-subsidisation assumed. Each resource has dependency arrows showing what it affects when it degrades. Finance is an enabling dimension: visible indicators that feed into other resources, not direct delivery inputs. Environment reflects natural capital — its link to this IBS is real but indirect, and that tension is itself a discussion point.
+        </div>
+      </div>
+      {DIMENSIONS.map(dim => (
+        <div key={dim.id} style={{ marginBottom:20 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:9, marginBottom:11, paddingBottom:7, borderBottom:`2px solid ${dim.color}33` }}>
+            <div style={{ width:9, height:9, borderRadius:2, background:dim.color, flexShrink:0 }}/>
+            <div style={{ fontFamily:"'Playfair Display',serif", fontSize:15, fontWeight:700, color:T.navy }}>{dim.label}</div>
+            <div style={{ fontSize:11, color:T.greyM }}>{dim.desc}</div>
+            {dim.isNatural && <span style={{ fontSize:9, fontWeight:800, color:T.greyM, background:T.navyPale, borderRadius:20, padding:'2px 8px', marginLeft:'auto', border:`1px solid ${T.navyBorder}` }}>Natural Capital</span>}
+          </div>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(190px,1fr))', gap:9 }}>
+            {dim.resources.map(r => (
+              <div key={r.id} style={{ background:T.white, border:`1px solid ${dim.color}2a`, borderLeft:`3px solid ${dim.color}`, borderRadius:9, padding:'11px 13px' }}>
+                <div style={{ fontSize:12, fontWeight:800, color:T.navy, marginBottom:3 }}>{r.label}</div>
+                <div style={{ fontSize:11, color:T.greyM, lineHeight:1.5, marginBottom: r.dependents.length||r.financeLink?6:0 }}>{r.desc}</div>
+                {r.dependents.length > 0 && <div style={{ fontSize:10, color:dim.color, fontWeight:700, marginBottom:r.financeLink?3:0 }}>→ {r.dependents.map(d=>ALL_RES.find(x=>x.id===d)?.label).join(', ')}</div>}
+                {r.financeLink && <div style={{ fontSize:10, color:T.dim.finance, fontWeight:700 }}>💰 {FINANCE.find(f=>f.id===r.financeLink)?.label}</div>}
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+      <div style={{ marginBottom:20 }}>
+        <div style={{ display:'flex', alignItems:'center', gap:9, marginBottom:11, paddingBottom:7, borderBottom:`2px solid ${T.dim.finance}33` }}>
+          <div style={{ width:9, height:9, borderRadius:2, background:T.dim.finance, flexShrink:0 }}/>
+          <div style={{ fontFamily:"'Playfair Display',serif", fontSize:15, fontWeight:700, color:T.navy }}>Finance</div>
+          <div style={{ fontSize:11, color:T.greyM }}>Enabling dimension — read-only indicators feeding into other resources</div>
+        </div>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(190px,1fr))', gap:9 }}>
+          {FINANCE.map(fi => (
+            <div key={fi.id} style={{ background:T.white, border:`1px solid ${T.dim.finance}2a`, borderLeft:`3px solid ${T.dim.finance}`, borderRadius:9, padding:'11px 13px' }}>
+              <div style={{ fontSize:12, fontWeight:800, color:T.navy, marginBottom:3 }}>{fi.label}</div>
+              <div style={{ fontSize:11, color:T.greyM, lineHeight:1.5, marginBottom:5 }}>{fi.desc}</div>
+              <div style={{ fontSize:10, color:T.dim.finance, fontWeight:700 }}>→ {fi.feeds.map(fid=>ALL_RES.find(r=>r.id===fid)?.label).join(', ')}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div style={{ background:'#fffbeb', border:`1px solid ${T.amberB}`, borderRadius:10, padding:'13px 16px', fontSize:13, color:T.amber, lineHeight:1.65, marginBottom:20 }}>
+        <strong>Now you can see what delivers the promise.</strong> The next step asks: at what point does degradation of each element become unacceptable — in the student's terms, not the institution's?
+      </div>
+      <button className="primary-btn" onClick={onNext}>Define Impact Tolerance →</button>
+    </div>
+  );
+}
+
+function Step3({ onNext }) {
+  return (
+    <div className="fade-up" style={{ maxWidth:800, margin:'0 auto', padding:'28px 20px' }}>
+      <div className="card" style={{ marginBottom:16 }}>
+        <div style={{ fontSize:9, letterSpacing:3, color:T.greyM, fontWeight:800, textTransform:'uppercase', marginBottom:14 }}>Impact Tolerance Statement</div>
+        <div style={{ fontFamily:"'Playfair Display',serif", fontSize:18, color:T.navy, lineHeight:1.8, marginBottom:22, fontStyle:'italic' }}>
+          "Cranfield School of Management can absorb disruption to programme delivery provided students continue to make structured progress toward their learning outcomes. The tolerance is breached when students cannot access faculty-led learning, peer cohort interaction, or assessed feedback for a sustained period, or when the quality of those interactions falls below the standard that justifies the programme's reputation and fee."
+        </div>
+
+        <div style={{ borderTop:`1px solid ${T.greyL}`, paddingTop:20, marginBottom:20 }}>
+          <div style={{ fontSize:10, color:T.greyM, fontWeight:800, textTransform:'uppercase', letterSpacing:1.5, marginBottom:16 }}>Threshold Indicators — with student consequence</div>
+          {[
+            { label:'Faculty Contact', amberAt:80, redAt:65, consequence:'Students receive less than the minimum contact hours in programme regulations — academic progression is formally at risk.' },
+            { label:'Teaching Hours Delivered', amberAt:90, redAt:85, consequence:'The programme cannot demonstrate delivery of its stated learning outcomes to accreditors or students.' },
+            { label:'Assessment Feedback', amberAt:85, redAt:70, consequence:'Students raise formal complaints citing breach of programme contract — regulatory scrutiny follows.' },
+            { label:'Cohort Participation', amberAt:70, redAt:55, consequence:'Students cannot demonstrate leadership and group competencies required for completion — assessment outcomes are invalidated.' },
+          ].map((t, i) => (
+            <div key={i} style={{ marginBottom:18 }}>
+              <ToleranceBar label={t.label} amberAt={t.amberAt} redAt={t.redAt} />
+              <div style={{ background:T.redBg, borderRadius:7, padding:'8px 11px', borderLeft:`3px solid ${T.redB}`, marginTop:5 }}>
+                <div style={{ fontSize:10, fontWeight:800, color:T.red, textTransform:'uppercase', letterSpacing:1, marginBottom:3 }}>If breached</div>
+                <div style={{ fontSize:12, color:T.red, lineHeight:1.5, fontStyle:'italic' }}>{t.consequence}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ background:'#fffbeb', border:`1px solid ${T.amberB}`, borderRadius:10, padding:'13px 16px', fontSize:12, color:T.amber, lineHeight:1.65 }}>
+          <strong>Facilitator note:</strong> These thresholds are illustrative — sense-check them in the room. The discipline is writing them in <em>outcome terms</em>: what the student experiences, not what the institution measures. Challenge the group: are these set in the right place?
+        </div>
+      </div>
+      <div style={{ background:'#f0fdf4', border:`1px solid ${T.greenB}`, borderRadius:10, padding:'13px 16px', fontSize:13, color:T.green, lineHeight:1.65, marginBottom:20 }}>
+        <strong>You now have the full picture.</strong> You know the promise, the resources that deliver it, and the thresholds that define when it breaks. Now stress test it — without specifying a cause.
+      </div>
+      <button className="primary-btn" onClick={onNext}>Begin Stress Test →</button>
+    </div>
+  );
+}
+
+function Step4({ values, setValues, finance, result, hasRun, isCalculating, onRun, runCount, discussionMode, setDiscussionMode, selectedScenario }) {
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 700;
+  const initVals = Object.fromEntries(ALL_RES.map(r=>[r.id,r.default]));
+
+  return (
+    <div className="fade-up" style={{ maxWidth:1140, margin:'0 auto', padding:'24px 20px' }}>
+      {selectedScenario && (
+        <div style={{ background:T.navyLight, borderRadius:9, padding:'9px 15px', marginBottom:16, fontSize:12, color:T.navy, fontWeight:700, display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
+          <span style={{ opacity:0.6 }}>Scenario:</span> {selectedScenario.name}
+          <span style={{ fontSize:11, fontWeight:400, color:T.greyM }}>— sliders pre-set. Adjust freely before running.</span>
+        </div>
+      )}
+      <div style={{ display:'grid', gridTemplateColumns: isMobile?'1fr':'minmax(0,1fr) minmax(0,1fr)', gap:22, alignItems:'start' }}>
+
+        {/* LEFT — SLIDERS */}
+        <div>
+          <div style={{ fontSize:11, color:T.greyM, fontWeight:800, textTransform:'uppercase', letterSpacing:1.5, marginBottom:12 }}>Resource Levels</div>
+          {DIMENSIONS.map(dim => (
+            <div key={dim.id} style={{ marginBottom:16 }}>
+              <div style={{ display:'flex', alignItems:'center', gap:7, marginBottom:8, paddingBottom:6, borderBottom:`2px solid ${dim.color}2a` }}>
+                <div style={{ width:7, height:7, borderRadius:2, background:dim.color, flexShrink:0 }}/>
+                <div style={{ fontSize:11, fontWeight:800, color:T.navy }}>{dim.label}</div>
+                {dim.isNatural && <span style={{ fontSize:9, color:T.greyM, fontWeight:700, marginLeft:'auto' }}>Natural Capital</span>}
+              </div>
+              {dim.resources.map(r => (
+                <CompactSlider key={r.id} resource={r} value={values[r.id]??100}
+                  onChange={(id,v) => setValues(p=>({...p,[id]:v}))}
+                  state={result?.rs?.[r.id]?.state||'green'} dimColor={dim.color} />
+              ))}
+            </div>
+          ))}
+
+          <button className="primary-btn" onClick={onRun} disabled={isCalculating}
+            style={{ width:'100%', marginTop:8, fontSize:15, padding:'16px', borderRadius:10 }}>
+            {isCalculating ? 'Analysing...' : runCount > 0 ? '↺  Re-run Stress Test' : '▶  Run Stress Test'}
+          </button>
+          <button className="ghost-btn" onClick={() => setValues(initVals)} style={{ width:'100%', marginTop:8, fontSize:12 }}>
+            Reset all to 100%
+          </button>
+        </div>
+
+        {/* RIGHT — OUTPUT */}
+        <div style={{ position: isMobile?'static':'sticky', top:80 }}>
+          <div style={{ fontSize:11, color:T.greyM, fontWeight:800, textTransform:'uppercase', letterSpacing:1.5, marginBottom:12 }}>System State &amp; Recommendations</div>
+          <OutputPanel result={result} finance={finance} hasRun={hasRun} isCalculating={isCalculating}
+            discussionMode={discussionMode} onToggleDiscussion={() => setDiscussionMode(d=>!d)} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── ROOT ──────────────────────────────────────────────────────────────────────
+function App() {
+  const initVals = Object.fromEntries(ALL_RES.map(r=>[r.id, r.default]));
+  const initFin  = Object.fromEntries(FINANCE.map(f=>[f.id,'healthy']));
+
+  const [step, setStep]               = useState(0);
+  const [completedSteps, setCompleted]= useState([]);
+  const [values, setValues]           = useState(initVals);
+  const [finance, setFinance]         = useState(initFin);
+  const [scenario, setScenario]       = useState(null);
+  const [result, setResult]           = useState(null);
+  const [hasRun, setHasRun]           = useState(false);
+  const [isCalc, setIsCalc]           = useState(false);
+  const [runCount, setRunCount]       = useState(0);
+  const [discussionMode, setDisc]     = useState(false);
+
+  const goTo = (i) => {
+    setCompleted(prev => prev.includes(step) ? prev : [...prev, step]);
+    setStep(i);
+  };
+
+  const runTest = () => {
+    setIsCalc(true); setHasRun(false);
+    setTimeout(() => {
+      setResult(computeState(values));
+      setIsCalc(false); setHasRun(true);
+      setRunCount(c => c+1);
+    }, 2000);
+  };
+
+  return (
+    <div style={{ minHeight:'100vh', background:'linear-gradient(160deg,#f0f3f9 0%,#e8ecf5 100%)' }}>
+      <Header step={step} setStep={goTo} completedSteps={completedSteps} />
+      {step===0 && <Step0 onSelect={setScenario} selectedScenario={scenario} setValues={setValues} setFinance={setFinance} onNext={() => goTo(1)} />}
+      {step===1 && <Step1 onNext={() => goTo(2)} />}
+      {step===2 && <Step2 onNext={() => goTo(3)} />}
+      {step===3 && <Step3 onNext={() => goTo(4)} />}
+      {step===4 && <Step4 values={values} setValues={setValues} finance={finance} result={result} hasRun={hasRun} isCalculating={isCalc} onRun={runTest} runCount={runCount} discussionMode={discussionMode} setDiscussionMode={setDisc} selectedScenario={scenario} />}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
